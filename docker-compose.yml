@@ -1,0 +1,76 @@
+version: "3.9"
+services:
+  freeIPA:
+    image: freeipa/freeipa-server:rocky-9-4.9.8
+    container_name: freeIPA
+    hostname: ipa.thelinuxdomain.com
+    ports:
+      - "80:80"
+      - "443:443"
+      - "389:389"
+      - "636:636"
+      - "88:88"
+      - "464:464"
+      - "88:88/udp"
+      - "464:464/udp"
+      - "123:123/udp"
+    volumes:
+      - /var/run/dockersock:/var/run/docker.sock
+      - ./freeipa-data:/data:Z
+    cap_add: 
+      - all
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    command: ipa-server-install -U -r thelinuxdomain.com -p Secret123 -a Secret123 --no-ntp
+    networks:
+      container-net:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    hostname: portainer.thelinuxdomain.com
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portainer-data:/data
+    ports:
+      - "9000:9000"
+    networks:
+      container-net:
+        aliases:
+          - portainer.thelinuxdomain.com
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp" # Only required if you are using Pi-hole as your DHCP server
+      - "8080:80/tcp"
+    environment:
+      TZ: 'America/Chicago'
+      WEBPASSWORD: Secret123
+    # Volumes store your data between container upgrades
+    volumes:
+      - ./pihole-data:/etc/pihole
+      - ./pihole-dnsmasq.d:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    restart: unless-stopped
+    networks:
+      container-net:
+  portainer_agent: ## NEEDED FOR WSL SUPPORT ##
+    image: portainer/agent:latest
+    container_name: portainer_agent
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/var/lib/docker/volumes
+    ports:
+      - "9001:9001"
+    networks:
+      container-net:
+networks:
+  container-net: {}
